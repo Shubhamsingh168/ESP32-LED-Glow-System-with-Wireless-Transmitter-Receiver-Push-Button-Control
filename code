@@ -1,0 +1,122 @@
+transmission
+#include <esp_now.h>
+#include <WiFi.h>
+
+esp_now_peer_info_t peerInfo;
+uint8_t receiverAddress[] = {0xFC, 0xF5, 0xC4, 0x01, 0x52, 0xFC};
+
+// Data structure for message
+typedef struct struct_message {
+  char a[32];
+  
+} struct_message;
+
+struct_message myData;
+
+
+void onDatasent(const uint8_t* mac_addr, esp_now_send_status_t status) {
+  Serial.print("Delivery Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "success" : "fail");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  
+  WiFi.mode(WIFI_STA);
+
+  
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  
+  esp_now_register_send_cb(onDatasent);
+
+
+  
+  memcpy(peerInfo.peer_addr, receiverAddress, 6);
+  peerInfo.channel = 1;
+  peerInfo.encrypt = false;
+
+  
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer");
+    return;
+  }
+
+  strcpy(myData.a, "hello world");
+
+  
+  esp_err_t result = esp_now_send(receiverAddress, (uint8_t*)&myData, sizeof(myData));
+}
+void loop() {
+  
+}
+
+
+
+
+#include <esp_now.h>
+#include <WiFi.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+typedef struct struct_message {
+  char a[32];
+} struct_message;
+
+struct_message myData;
+
+void onReceive(const uint8_t* mac, const uint8_t* incomingData, int len) {
+  memcpy(&myData, incomingData, sizeof(myData));
+  Serial.print("Bytes received: ");
+  Serial.println(len);
+  Serial.print("Message: ");
+  Serial.println(myData.a);
+
+  // Clear the display
+  display.clearDisplay();
+  // Set text size and color
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  // Set cursor to top-left corner
+  display.setCursor(0, 10);
+  // Print the message on the display
+  display.println("Message: ");
+  display.println(myData.a);
+  // Update the display with the new content
+  display.display();
+}
+
+void setup() {
+  Serial.begin(9600);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 allocation failed");
+  }
+  delay(2000);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 10);
+  display.println("Waiting for message...");
+  display.display();
+
+  WiFi.mode(WIFI_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error while initializing the ESP-NOW");
+    return;
+  }
+  esp_now_register_recv_cb(onReceive);
+}
+
+void loop() {
+}
